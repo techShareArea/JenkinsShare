@@ -81,6 +81,9 @@ ${ANDROID_HOME}/tools/bin
 ![](img/b5.png)
 ![](img/b6.png) 
 
+###注意遇到项目中多个模块时, 按下面的:
+![](img/b13.png)
+
 [Maven单独构建多模块项目中的单个模块链接](https://www.cnblogs.com/EasonJim/p/8350560.html)
 
 [国外这边文章构建多模块项目中的单个模块链接](https://blog.sonatype.com/2009/10/maven-tips-and-tricks-advanced-reactor-options/#.VpdK9Nwaa6M)
@@ -211,6 +214,17 @@ ${ANDROID_HOME}/tools/bin
 
 
 ##邮箱通知（史上最坑的环节，我用163邮箱的SMTP服务不行， 后来用了QQ的SMTP就ok）
+<pre>
+补充(2019-09-16): 163邮箱smtp服务不行原来是没有开通smtp, 还有网易企业邮箱如xxx@xxx.com之前说不行, 查了资料之后, 才发现, 网易企业邮箱默认是开通了smtp服务, 不需要开通, 为什么还是不行的呢, 因为网易企业邮箱分为网易免费企业邮箱和网易收费企业邮箱,它们的pop和smtp   
+	网易免费企业邮箱
+	pop：pop.ym.163.com
+	smtp：smtp.ym.163.com
+	
+	网易收费企业邮箱
+	pop：pop.qiye.163.com
+	smtp：smtp.qiye.163.com
+而我一直配置的是smtp.qiye.163.com(公司用的是免费的邮箱,所以一直发不了邮箱), 找了很多资料, 网易官网也没说这些东西, 只说有收费版本网易企业邮箱, 害我思考了差不多1年来,唉
+</pre>
   	
 	Jenkins的邮箱通知分为Jenkins内置和插件， 内置的不好， 只有在失败的时候才发邮件， 定制化的采用插件
 	一定看这个链接下面的这个链接： 
@@ -298,3 +312,65 @@ ${ANDROID_HOME}/tools/bin
 
 	效果图如下：
 ![](img/g1.png)
+
+
+##jenkins部署之springcloud项目:
+<pre>一般来说部署springcloud项目, 主要是注册中心和配置中心部署好之后, 后面一般都不会改变,还有此文档还增加了springcloud的JVM内存优化, 还有前面很多部分都有类似, 我这里就不完全一一解释, 我这里挑出不相同的解释, 还有sh,我会放到"附件\Java后台\优化之后部署脚本"下面的, 本文涉及到所有docker镜像, 我会打包放到docker镜像目录下</pre>
+###jenkins部署之springcloud项目---Jenkins模块:
+![](img/h1.png)
+![](img/h2.png)	
+![](img/h3.png)
+![](img/h4.png)
+![](img/h5.png)
+![](img/h6.png)
+![](img/h7.png)
+
+
+###1. jenkins部署之springcloud项目的不需要远程debug---deloyForSpringCloudForNoneRemote.sh
+<pre># ----------------------------------------------------
+# Init dockerfile
+# ----------------------------------------------------
+echo "**Init dockerfile start: "${DOCKER_FILE}
+#echo "FROM tomcat" > ${DOCKER_FILE}
+#echo 'MAINTAINER junsansi "junsansi@sina.com"' >> ${DOCKER_FILE}
+#echo "ADD *.war /usr/local/tomcat/webapps/${PROJECT_NAME}.war" >> ${DOCKER_FILE}
+#echo "EXPOSE 8080" >> ${DOCKER_FILE}
+#echo "CMD /usr/local/tomcat/bin/startup.sh && tail -f /usr/local/tomcat/logs/catalina.out" >> ${DOCKER_FILE}
+#cat ${DOCKER_FILE}
+#echo "**Init dockerfile end."
+
+#第一行必须指令基于的基础镜像
+#echo "FROM docker.io/tomcat:8.0.53-jre8-alpine" > ${DOCKER_FILE}
+#echo "FROM frolvlad/alpine-oraclejre8 " > ${DOCKER_FILE}
+echo "FROM openjdk:8-jre-alpine" > ${DOCKER_FILE}
+
+#格式为maintainer ，指定维护者的信息
+echo "MAINTAINER wangzunbin <905192187@qq.com>" >> ${DOCKER_FILE}
+
+#指定一个环境变量，会被后续 RUN 指令使用，并在容器运行时保持
+echo "VOLUME /tmp" >> ${DOCKER_FILE}
+
+#echo "ENV JPDA_ADDRESS "${DPORT} >> ${DOCKER_FILE} --- 此句只要是把远程debug屏蔽掉 
+
+#增强版的COPY，支持将远程URL的资源加入到镜像的文件系统
+echo "ADD *.jar app.jar" >> ${DOCKER_FILE}
+#格式为Run 或者Run [“executable” ,”Param1”, “param2”]
+#前者在shell终端上运行，即/bin/sh -C，后者使用exec运行。例如：RUN [“/bin/bash”, “-c”,”echo hello”]
+#每条run指令在当前基础镜像执行，并且提交新镜像。当命令比较长时，可以使用“/”换行。
+#echo "RUN bash -c 'touch /app.jar'"  >> ${DOCKER_FILE}
+
+#挂载运行日志
+#VOLUME /var/log/xzn/
+
+#配置容器启动后执行的命令，并且不可被 docker run 提供的参数覆盖。
+#每个Dockerfile中只能有一个 ENTRYPOINT ，当指定多个时，只有最后一个起效。
+#echo 'ENTRYPOINT ["java","-Djava.security.egd=file:/dev/./urandom", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address='${DPORT}'", "-Dspring.profiles.active=${SPRING_PROFILES_ACTIVE}","-Xmx1024m","-Dserver.port=${SERVER_PORT}", "-jar", "/app.jar"]' >> ${DOCKER_FILE}
+# JAVA_OPTS参数--主要是需要传入jvm参数限制,不然docker的内存一直增长, 需要对其限制, jvm才回GC, SPRING_PROFILES_ACTIVE参数--项目环境, SERVER_PORT--向外暴露端口
+echo 'ENTRYPOINT ["sh","-c","java ${JAVA_OPTS} -Djava.security.egd=file:/dev/./urandom -Dspring.profiles.active=${SPRING_PROFILES_ACTIVE} -Xmx1024m -Dserver.port=${SERVER_PORT} -jar /app.jar"]' >> ${DOCKER_FILE}
+echo 'EXPOSE ${SERVER_PORT}' >> ${DOCKER_FILE}
+cat ${DOCKER_FILE}
+echo "**Init dockerfile end."
+</pre>
+
+注意: 其他脚本都是差不多, 下面的脚本都是经过优化: deloyForSpringCloudForNoneRemote.sh是不需要远程debug(Springcloud项目), deloyForSpringCloudForOpen.sh是用openjdk为基础镜像的远程debug(springcloud项目), deloyForSpringCloud.sh是以oracle-jdk8为基础镜像的远程debug(springcloud项目), deloyForOracle.sh是tomcat-oracle-jdk8为基础镜像的脚本(传统的tomcat项目), 涉及到docker的镜像迁移请移到DockerShare, 镜像如下:
+![](img/h8.png)
